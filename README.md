@@ -2,9 +2,33 @@
 
 > **Point it at a folder. Get clean Markdown.**  
 > A small, well-behaved tool for turning a directory of mixed documents
-> (PDF, DOCX, PPTX, XLSX, HTML, CSV…) into Markdown that's ready to feed
-> to an LLM — a Gemini Gem, a Claude Project, a RAG pipeline, or just
-> your own reading list.
+> (PDF, DOCX, ODT, RTF, EPUB, PPTX, XLSX, HTML, CSV, TXT, Markdown,
+> JSON, XML) into Markdown that's ready to feed to an LLM — a Gemini
+> Gem, a Claude Project, a RAG pipeline, or just your own reading
+> list.
+
+## Why
+
+Modern LLMs are good at reading, but only if you hand them clean text.
+A typical knowledge base is the opposite: a folder tree full of PDFs,
+Word docs, spreadsheets, slide decks, and the occasional HTML export —
+each with its own extraction quirks, each opaque to anything that
+expects plain text. Feeding that directly into a chatbot gets you
+garbled tables, stripped equations, lost structure, and an agent that
+confidently cites things that aren't there.
+
+The fix is boring but effective: convert everything to Markdown first,
+once, and feed the model that. Markdown is the lingua franca of
+modern LLMs — short, structured, token-efficient, citation-friendly,
+and lossless enough for the vast majority of document content.
+`doc2md` does that conversion for a whole folder in one command,
+preserves equations as LaTeX when pandoc is available, and emits a
+single merged corpus file with a built-in table of contents and
+stable `[NN]` document IDs so the model can cite sources back to you
+unambiguously. You upload one file to your Gem, Project, or RAG
+index, and the model gets the whole corpus with provenance intact.
+
+## What it produces
 
 `doc2md` scans a folder, converts every supported document to Markdown,
 and can additionally produce:
