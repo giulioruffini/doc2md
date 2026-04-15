@@ -1,0 +1,67 @@
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[project]
+name = "doc2md"
+version = "0.1.0"
+description = "Scan a folder for documents (PDF, DOCX, PPTX, XLSX, HTML, CSV) and produce clean Markdown for LLM ingest — individual files, a merged corpus, or both."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Giulio Ruffini" }]
+keywords = [
+    "markdown",
+    "pdf",
+    "docx",
+    "pptx",
+    "xlsx",
+    "llm",
+    "rag",
+    "gemini",
+    "corpus",
+    "document-conversion",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Text Processing :: Markup :: Markdown",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "markitdown[docx,pptx,xlsx,xls]>=0.1.5",
+    "opendataloader-pdf>=0.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "ruff>=0.5",
+]
+
+[project.scripts]
+doc2md = "doc2md.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/giulioruffini/doc2md"
+Repository = "https://github.com/giulioruffini/doc2md"
+Issues = "https://github.com/giulioruffini/doc2md/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["doc2md"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

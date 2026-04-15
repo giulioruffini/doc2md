@@ -1,0 +1,308 @@
+# doc2md
+
+> **Point it at a folder. Get clean Markdown.**  
+> A small, well-behaved tool for turning a directory of mixed documents
+> (PDF, DOCX, PPTX, XLSX, HTML, CSV…) into Markdown that's ready to feed
+> to an LLM — a Gemini Gem, a Claude Project, a RAG pipeline, or just
+> your own reading list.
+
+`doc2md` scans a folder, converts every supported document to Markdown,
+and can additionally produce:
+
+- a **merged corpus file** — one big `.md` with a header, table of
+  contents, and per-document sections carrying stable `[NN]` IDs so an
+  LLM can cite sources precisely;
+- a **manifest** — a standalone directory file that lists every
+  converted document with links to its individual `.md`.
+
+You pick: individual files, merged corpus, manifest, or any combination.
+
+---
+
+## Features
+
+- **One command, one folder** — `doc2md ./papers` and you're done.
+- **Multi-format** — PDF, DOCX, PPTX, XLSX, XLS, HTML, HTM, CSV out of
+  the box; easily extensible.
+- **LLM-aware output** — the merged file comes with a generated header
+  that tells the model how to cite documents (`[NN] filename`), a table
+  of contents with one-line teasers, and per-document metadata blocks.
+- **Idempotent** — re-running skips sources whose `.md` is already
+  up-to-date. `--force` rebuilds everything.
+- **Resilient** — one bad document doesn't kill the batch; failures are
+  logged and reported at the end.
+- **Lazy backends** — a missing optional dependency only fails if its
+  format actually appears in your folder.
+- **Small and readable** — a single package, ~600 lines, easy to audit
+  or extend.
+
+---
+
+## Install
+
+```bash
+pip install doc2md
+```
+
+Or, for a local checkout:
+
+```bash
+git clone https://github.com/giulioruffini/doc2md.git
+cd doc2md
+pip install -e .
+```
+
+Requires Python 3.10+. Installs two backends:
+
+- [`markitdown`](https://github.com/microsoft/markitdown) — for DOCX,
+  PPTX, XLSX, XLS, HTML, CSV.
+- [`opendataloader-pdf`](https://pypi.org/project/opendataloader-pdf/) —
+  for PDFs (higher-quality extraction than markitdown's built-in PDF
+  path).
+
+> 💡 If you keep your documents inside a cloud-sync folder (Google Drive,
+> Dropbox, iCloud…), create your virtualenv **outside** of it. Cloud
+> sync tends to strip executable bits and mangle interpreter symlinks,
+> which silently breaks virtualenvs.
+
+---
+
+## Quick start
+
+```bash
+# Per-document .md next to every source, plus a merged corpus and a manifest:
+doc2md ./papers \
+    --merged ./papers/papers_corpus.md \
+    --manifest ./papers/INDEX.md
+
+# Only the merged file, no per-document clutter:
+doc2md ./papers \
+    --merged ./papers/papers_corpus.md \
+    --no-individual
+
+# Mirror all outputs into a separate build directory:
+doc2md ./papers \
+    --output-dir build/papers-md \
+    --merged build/papers_corpus.md \
+    --manifest build/papers-md/INDEX.md
+
+# Run doc2md over every subfolder that looks like a source directory:
+for dir in *-sources; do
+    doc2md "$dir" \
+        --merged "$dir/${dir}_corpus.md" \
+        --manifest "$dir/INDEX.md"
+done
+```
+
+---
+
+## CLI reference
+
+```
+doc2md [-h] [--merged PATH] [--manifest PATH] [--no-individual]
+       [--output-dir DIR] [--no-recursive] [--force] [-v]
+       root
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `root` | Folder to scan (positional). |
+| `--merged PATH` | Also write a single merged Markdown file at `PATH` (header + TOC + `[NN]` per-document sections). |
+| `--manifest PATH` | Also write a standalone directory file (header + TOC linking to the individual `.md` files). Requires per-document files. |
+| `--no-individual` | Don't keep per-document `.md` files. Requires `--merged`. |
+| `--output-dir DIR` | Mirror per-document `.md` files under `DIR` instead of writing them next to sources. |
+| `--no-recursive` | Only scan the top-level of `root`. |
+| `--force` | Re-convert files even if an up-to-date `.md` already exists. |
+| `-v, --verbose` | DEBUG-level logging. |
+
+---
+
+## Python API
+
+```python
+from pathlib import Path
+from doc2md import build_corpus
+
+result = build_corpus(
+    root=Path("papers"),
+    merged_output=Path("papers/papers_corpus.md"),
+    manifest_output=Path("papers/INDEX.md"),
+)
+
+print(result.converted)     # [Path, ...]  per-document .md files written
+print(result.skipped)       # sources already up-to-date
+print(result.failed)        # [(Path, error_message), ...]
+print(result.merged_path)   # Path | None
+print(result.manifest_path) # Path | None
+```
+
+---
+
+## What the merged file looks like
+
+Every merged corpus file starts with a small preamble designed for LLM
+consumption:
+
+```markdown
+# Corpus: papers
+
+- **Generated:** 2026-04-15 13:24 UTC
+- **Source root:** `papers`
+- **Documents:** 42
+- **Total source size:** 58.3 MB
+
+## How to use this corpus
+
+This file is a concatenation of documents converted from PDF/DOCX to
+Markdown for LLM ingest. Each document has a stable numeric ID of the
+form `[NN]`. When citing a document in an answer, reference it as
+`[NN] <filename>`. The table of contents below maps every ID to a
+`## [NN] ...` heading further down in the file.
+
+## Table of contents
+
+1. **`[01]`** [`chapter_01.pdf`](#doc-01) — 1.9 MB · pdf — _Introduction to..._
+2. **`[02]`** [`chapter_02.docx`](#doc-02) — 320 KB · docx — _Background and related work_
+...
+
+---
+
+## <a id="doc-01"></a>[01] chapter_01.pdf
+
+**Source:** `chapter_01.pdf`  
+**Format:** pdf · **Size:** 1.9 MB
+
+<document body here>
+```
+
+The per-document `[NN]` IDs are stable across a run, so an LLM can cite
+them and a human can grep for them. Anchors (`#doc-NN`) make the TOC
+clickable in any Markdown viewer.
+
+The manifest file uses the same header + TOC vocabulary, but its TOC
+links point at the actual `.md` files on disk (paths relative to the
+manifest's own location), so you can drop `INDEX.md` next to your
+output directory and browse the corpus like a folder.
+
+---
+
+## Architecture
+
+```
+doc2md/
+├── scanner.py      # discover source files under a root
+├── converters.py   # Converter ABC + MarkItDownConverter + PdfConverter + registry
+├── merger.py       # header, TOC, per-document sections, manifest writer
+├── pipeline.py     # build_corpus() orchestration + BuildResult
+└── cli.py          # argparse entry (installed as the `doc2md` script)
+```
+
+The pipeline is deliberately split so each piece is independently
+testable and replaceable:
+
+- **`scanner.scan()`** — returns source paths, filters Word lockfiles
+  (`~$...`) and dotfiles.
+- **`converters.Converter`** — ABC. Each subclass declares its
+  `extensions` and implements `convert(source) -> str`. Backends are
+  imported lazily inside `__init__`, so a missing optional dependency
+  only fails if that format actually appears in the folder. A single
+  converter can handle multiple extensions (one shared backend
+  instance).
+- **`merger.merge()` / `write_manifest()`** — corpus-level writers.
+  Both share the same header and TOC vocabulary so downstream LLMs see
+  a consistent structure.
+- **`pipeline.build_corpus()`** — glues the three together, handles
+  idempotency (mtime check), output layout (sibling vs. mirrored vs.
+  ephemeral), and per-file error isolation (one bad file doesn't kill
+  the batch).
+
+---
+
+## Extending: add a new format
+
+Say you want to support `.epub`:
+
+```python
+# doc2md/converters.py
+class EpubConverter(Converter):
+    extensions = (".epub",)
+
+    def __init__(self) -> None:
+        from ebooklib import epub
+        # ... set up your backend here
+        self._backend = epub
+
+    def convert(self, source: Path) -> str:
+        # ... return markdown text
+        ...
+
+_register(DEFAULT_CONVERTERS, EpubConverter)
+```
+
+Or reuse `MarkItDownConverter` — it already handles several formats
+through a single backend, and adding an extension to its `extensions`
+tuple is enough if markitdown supports the format natively.
+
+`scanner.scan()` and `pipeline.build_corpus()` pick up the new
+extension automatically from the registry.
+
+---
+
+## Supported formats
+
+| Extension | Backend | Notes |
+| --- | --- | --- |
+| `.pdf` | opendataloader-pdf | Uses PDF structural tree when available; high-quality layout extraction. |
+| `.docx` | markitdown | |
+| `.pptx` | markitdown | |
+| `.xlsx`, `.xls` | markitdown | |
+| `.html`, `.htm` | markitdown | |
+| `.csv` | markitdown | |
+
+More formats (EPUB, RTF, ODT, …) are easy to add — see above.
+
+---
+
+## FAQ
+
+**Can I use it from Python without the CLI?**  
+Yes — `from doc2md import build_corpus`. See the Python API section.
+
+**What happens to files doc2md can't convert?**  
+They're listed in `BuildResult.failed` with the error message. The rest
+of the batch continues. Exit code is non-zero if anything failed.
+
+**Does it re-convert files every time?**  
+No. Re-runs are idempotent: a source is skipped if a `.md` already
+exists and is newer than the source. Use `--force` to rebuild.
+
+**Can I run it over many folders at once?**  
+Yes — wrap it in a shell loop (see Quick start).
+
+**Does the merged file include the individual `.md` files, or read them
+from disk?**  
+It reads the individual `.md` files that were just written. So the
+merged file is always consistent with the per-document outputs.
+
+---
+
+## Contributing
+
+Issues and PRs welcome. Keep the scope tight: `doc2md` aims to be a
+small, legible tool, not a kitchen-sink document processor. If you want
+to add a format, a single clean converter + a note in this README is
+the ideal PR.
+
+```bash
+git clone https://github.com/giulioruffini/doc2md.git
+cd doc2md
+pip install -e ".[dev]"
+pytest
+ruff check .
+```
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
