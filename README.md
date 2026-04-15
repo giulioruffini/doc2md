@@ -43,17 +43,29 @@ You pick: individual files, merged corpus, manifest, or any combination.
 
 ## Install
 
+`doc2md` is not on PyPI yet. Install it directly from GitHub:
+
 ```bash
-pip install doc2md
+pip install git+https://github.com/giulioruffini/doc2md.git
 ```
 
-Or, for a local checkout:
+Or clone and install in editable mode if you want to hack on it:
 
 ```bash
 git clone https://github.com/giulioruffini/doc2md.git
 cd doc2md
 pip install -e .
 ```
+
+Either way you end up with a `doc2md` command on your `PATH`. Run
+`doc2md --help` to confirm.
+
+> 💡 Install into a virtualenv, not your system Python:
+> ```bash
+> python3 -m venv ~/venvs/doc2md
+> source ~/venvs/doc2md/bin/activate
+> pip install git+https://github.com/giulioruffini/doc2md.git
+> ```
 
 Requires Python 3.10+. Installs two backends:
 
@@ -337,6 +349,7 @@ the ideal PR.
 ```bash
 git clone https://github.com/giulioruffini/doc2md.git
 cd doc2md
+python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest
 ruff check .
