@@ -22,8 +22,8 @@ You pick: individual files, merged corpus, manifest, or any combination.
 ## Features
 
 - **One command, one folder** — `doc2md ./papers` and you're done.
-- **Multi-format** — PDF, DOCX, ODT, PPTX, XLSX, XLS, HTML, HTM, CSV
-  out of the box; easily extensible.
+- **Multi-format** — PDF, DOCX, ODT, RTF, PPTX, XLSX, XLS, HTML, HTM,
+  CSV, TXT out of the box; easily extensible.
 - **Equation-aware** — install [pandoc](https://pandoc.org) and DOCX/ODT
   equations are preserved as LaTeX (`$…$`, `$$…$$`) instead of being
   silently dropped. Auto-detected at runtime; no flags required.
@@ -295,12 +295,14 @@ extension automatically from the registry.
 | `.pdf` | opendataloader-pdf | Uses PDF structural tree when available; high-quality layout extraction. |
 | `.docx` | pandoc (fallback: markitdown) | Pandoc preserves equations as LaTeX and produces cleaner output. |
 | `.odt` | pandoc | Only available when pandoc is installed. |
+| `.rtf` | pandoc | Only available when pandoc is installed. |
 | `.pptx` | markitdown | Pandoc cannot currently read `.pptx`; equations in slides are lost. |
 | `.xlsx`, `.xls` | markitdown | |
 | `.html`, `.htm` | markitdown | |
 | `.csv` | markitdown | |
+| `.txt` | passthrough | Returned verbatim; no parsing. |
 
-More formats (EPUB, RTF, …) are easy to add — see above.
+More formats (EPUB, …) are easy to add — see above.
 
 ---
 

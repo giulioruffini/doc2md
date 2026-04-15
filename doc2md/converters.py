@@ -4,20 +4,22 @@ Each :class:`Converter` turns one source document into a Markdown string.
 Backends are imported lazily so a missing optional dependency only fails
 when its format is actually encountered.
 
-Three built-in converters cover most document formats:
+Four built-in converters cover most document formats:
 
 * :class:`PdfConverter` — wraps `opendataloader-pdf
   <https://pypi.org/project/opendataloader-pdf/>`_ for higher-quality PDF
   extraction than markitdown's built-in PDF path.
 * :class:`PandocConverter` — shells out to the `pandoc
-  <https://pandoc.org>`_ binary for ``.docx`` and ``.odt``. Pandoc
-  preserves Word equations as LaTeX (``$…$`` / ``$$…$$``) and produces
-  cleaner tables and headings than markitdown. Auto-enabled when the
-  ``pandoc`` binary is present on ``PATH``.
+  <https://pandoc.org>`_ binary for ``.docx``, ``.odt`` and ``.rtf``.
+  Pandoc preserves Word equations as LaTeX (``$…$`` / ``$$…$$``) and
+  produces cleaner tables and headings than markitdown. Auto-enabled
+  when the ``pandoc`` binary is present on ``PATH``.
 * :class:`MarkItDownConverter` — wraps `Microsoft MarkItDown
   <https://github.com/microsoft/markitdown>`_ and handles ``.docx``,
   ``.pptx``, ``.xlsx``, ``.xls``, ``.html``, ``.htm`` and ``.csv``.
   Used as a fallback for ``.docx`` when pandoc is not available.
+* :class:`PlainTextConverter` — passthrough for ``.txt``. No backend,
+  no parsing — the file is returned verbatim.
 
 Adding a new format:
     1. Subclass :class:`Converter`, set ``extensions``, implement ``convert``.
@@ -117,20 +119,21 @@ class PdfConverter(Converter):
 
 
 class PandocConverter(Converter):
-    """DOCX / ODT → Markdown via the ``pandoc`` binary.
+    """DOCX / ODT / RTF → Markdown via the ``pandoc`` binary.
 
     Pandoc is preferred over :class:`MarkItDownConverter` for these
     formats because it:
 
     * converts Word equations (OMML) to LaTeX (``$…$`` / ``$$…$$``),
     * produces cleaner headings, tables, blockquotes, and lists,
-    * handles ODT, which markitdown does not.
+    * handles ODT and RTF, which markitdown does not.
 
-    This converter is auto-registered as the default for ``.docx`` and
-    ``.odt`` when the ``pandoc`` binary is found on ``PATH``. If pandoc
-    is not installed, ``.docx`` falls back to markitdown and ``.odt``
-    has no handler. Install from https://pandoc.org — e.g.
-    ``brew install pandoc`` on macOS or ``apt install pandoc`` on Debian.
+    This converter is auto-registered as the default for ``.docx``,
+    ``.odt`` and ``.rtf`` when the ``pandoc`` binary is found on
+    ``PATH``. If pandoc is not installed, ``.docx`` falls back to
+    markitdown and ``.odt`` / ``.rtf`` have no handler. Install from
+    https://pandoc.org — e.g. ``brew install pandoc`` on macOS or
+    ``apt install pandoc`` on Debian.
 
     Pandoc invocation can be customized by passing *extra_args*. By
     default doc2md runs::
@@ -146,7 +149,7 @@ class PandocConverter(Converter):
     scratch dir — downstream LLM ingest does not use them).
     """
 
-    extensions = (".docx", ".odt")
+    extensions = (".docx", ".odt", ".rtf")
 
     def __init__(self, *, extra_args: list[str] | None = None) -> None:
         if shutil.which("pandoc") is None:
@@ -158,7 +161,7 @@ class PandocConverter(Converter):
         self._extra_args = list(extra_args or [])
 
     def convert(self, source: Path) -> str:
-        fmt = {".docx": "docx", ".odt": "odt"}[source.suffix.lower()]
+        fmt = {".docx": "docx", ".odt": "odt", ".rtf": "rtf"}[source.suffix.lower()]
         media_dir = Path(tempfile.mkdtemp(prefix="doc2md_pandoc_media_"))
         try:
             cmd = [
@@ -186,6 +189,22 @@ class PandocConverter(Converter):
             shutil.rmtree(media_dir, ignore_errors=True)
 
 
+class PlainTextConverter(Converter):
+    """Plain ``.txt`` → Markdown.
+
+    This is a no-op converter: plain text is already valid Markdown (any
+    stray markdown metacharacters are ignored by LLMs anyway), so the
+    file contents are returned as-is. No backend dependencies, no
+    parsing — just a UTF-8 read with replacement-character fallback for
+    broken encodings.
+    """
+
+    extensions = (".txt",)
+
+    def convert(self, source: Path) -> str:
+        return source.read_text(encoding="utf-8", errors="replace")
+
+
 def _register(mapping: dict[str, type[Converter]], cls: type[Converter]) -> None:
     for ext in cls.extensions:
         mapping[ext] = cls
@@ -195,7 +214,9 @@ def _register(mapping: dict[str, type[Converter]], cls: type[Converter]) -> None
 DEFAULT_CONVERTERS: dict[str, type[Converter]] = {}
 _register(DEFAULT_CONVERTERS, PdfConverter)
 _register(DEFAULT_CONVERTERS, MarkItDownConverter)
-# Pandoc takes precedence for .docx (and adds .odt) when the binary is
-# available — registration order matters: pandoc overrides markitdown.
+_register(DEFAULT_CONVERTERS, PlainTextConverter)
+# Pandoc takes precedence for .docx (and adds .odt / .rtf) when the
+# binary is available — registration order matters: pandoc overrides
+# markitdown.
 if shutil.which("pandoc") is not None:
     _register(DEFAULT_CONVERTERS, PandocConverter)

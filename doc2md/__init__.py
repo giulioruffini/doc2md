@@ -2,4 +2,4 @@
 from doc2md.pipeline import BuildResult, build_corpus
 
 __all__ = ["build_corpus", "BuildResult"]
-__version__ = "0.2.0"
+__version__ = "0.3.0"
