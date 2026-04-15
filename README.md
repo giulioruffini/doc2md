@@ -22,8 +22,8 @@ You pick: individual files, merged corpus, manifest, or any combination.
 ## Features
 
 - **One command, one folder** — `doc2md ./papers` and you're done.
-- **Multi-format** — PDF, DOCX, ODT, RTF, PPTX, XLSX, XLS, HTML, HTM,
-  CSV, TXT out of the box; easily extensible.
+- **Multi-format** — PDF, DOCX, ODT, RTF, EPUB, PPTX, XLSX, XLS, HTML,
+  HTM, CSV, TXT, Markdown, JSON, XML out of the box; easily extensible.
 - **Equation-aware** — install [pandoc](https://pandoc.org) and DOCX/ODT
   equations are preserved as LaTeX (`$…$`, `$$…$$`) instead of being
   silently dropped. Auto-detected at runtime; no flags required.
@@ -226,6 +226,36 @@ output directory and browse the corpus like a folder.
 
 ---
 
+## Markdown as a source format
+
+Treating `.md` / `.markdown` as a source format needs one subtlety:
+doc2md writes its own output as `.md` files alongside the sources, so a
+naive scan would pick up those outputs and feed them back into the next
+run as sources. To avoid that, the scanner applies two guards:
+
+1. **Explicit output exclusion.** The merged corpus file and the
+   manifest file are excluded from the scan by path, so the merge of a
+   folder never contains itself (even when `--merged` points inside
+   `root`).
+2. **Derived-markdown heuristic.** If a `.md` file has a sibling with
+   the same stem and a different, registered extension (e.g.
+   `report.md` next to `report.docx`), the `.md` is assumed to be a
+   doc2md output from a previous run and is dropped from the source
+   list. A hand-written `.md` without such a sibling — e.g. a
+   `notes.md` on its own, or a `README.md` — is included normally.
+
+When `.md` *is* a source and its resolved output path equals the
+source path (sibling mode, no `.md` backend conversion needed), the
+pipeline short-circuits the read/write round-trip entirely. Even under
+`--force`, doc2md will not overwrite an authentic markdown source with
+a copy of itself.
+
+If this heuristic gets in your way — say, you really do keep a
+hand-written `notes.md` next to `notes.pdf` — use `--output-dir` to
+mirror outputs into a separate directory. That eliminates the
+ambiguity: inputs and outputs no longer share a parent folder, so
+every `.md` in `root` is unambiguously a source.
+
 ## Architecture
 
 ```
@@ -294,15 +324,19 @@ extension automatically from the registry.
 | --- | --- | --- |
 | `.pdf` | opendataloader-pdf | Uses PDF structural tree when available; high-quality layout extraction. |
 | `.docx` | pandoc (fallback: markitdown) | Pandoc preserves equations as LaTeX and produces cleaner output. |
-| `.odt` | pandoc | Only available when pandoc is installed. |
-| `.rtf` | pandoc | Only available when pandoc is installed. |
+| `.odt`  | pandoc | Only available when pandoc is installed. |
+| `.rtf`  | pandoc | Only available when pandoc is installed. |
+| `.epub` | pandoc | Only available when pandoc is installed. |
 | `.pptx` | markitdown | Pandoc cannot currently read `.pptx`; equations in slides are lost. |
 | `.xlsx`, `.xls` | markitdown | |
 | `.html`, `.htm` | markitdown | |
-| `.csv` | markitdown | |
-| `.txt` | passthrough | Returned verbatim; no parsing. |
+| `.csv`  | markitdown | |
+| `.txt`  | passthrough | Returned verbatim; no parsing. |
+| `.md`, `.markdown` | passthrough | Hand-written markdown is copied verbatim. See the [Markdown sources](#markdown-as-a-source-format) section for how doc2md avoids picking up its own outputs. |
+| `.json` | structured-text | Pretty-printed when valid JSON, then wrapped in a ` ```json ` fenced code block. |
+| `.xml`  | structured-text | Wrapped verbatim in a ` ```xml ` fenced code block. |
 
-More formats (EPUB, …) are easy to add — see above.
+Need another format? See [Extending](#extending-add-a-new-format).
 
 ---
 

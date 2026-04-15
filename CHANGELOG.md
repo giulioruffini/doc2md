@@ -4,6 +4,33 @@ All notable changes to `doc2md` are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] — 2026-04-15
+
+### Added
+- **`.epub` support** via `PandocConverter`. Ebooks are routed
+  through pandoc alongside `.docx` / `.odt` / `.rtf`.
+- **`.md` / `.markdown` source support** via a new
+  `MarkdownPassthroughConverter`. Hand-written Markdown files are
+  included in the corpus verbatim.
+- **`.json` / `.xml` support** via a new `StructuredTextConverter`.
+  Content is wrapped in a fenced code block with the appropriate
+  language hint; JSON is pretty-printed when parseable. This replaces
+  markitdown's single-line flattening of these formats.
+
+### Changed
+- **Scanner now accepts an `exclude` parameter.** The pipeline passes
+  the merged-corpus and manifest output paths so doc2md never picks
+  up its own outputs as sources on re-runs.
+- **Scanner applies a derived-markdown heuristic.** A `.md` file with
+  a sibling of the same stem and a different registered extension
+  (e.g. `report.md` next to `report.docx`) is treated as a doc2md
+  output from a previous run and dropped from the source list.
+- **Pipeline short-circuits `source == output` writes.** Hand-written
+  markdown files in sibling mode are never overwritten, even under
+  `--force`.
+- `README.md` gains a dedicated *Markdown as a source format*
+  section explaining the above.
+
 ## [0.3.0] — 2026-04-15
 
 ### Added

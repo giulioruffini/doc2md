@@ -4,22 +4,29 @@ Each :class:`Converter` turns one source document into a Markdown string.
 Backends are imported lazily so a missing optional dependency only fails
 when its format is actually encountered.
 
-Four built-in converters cover most document formats:
+Six built-in converters cover most document formats:
 
 * :class:`PdfConverter` — wraps `opendataloader-pdf
   <https://pypi.org/project/opendataloader-pdf/>`_ for higher-quality PDF
   extraction than markitdown's built-in PDF path.
 * :class:`PandocConverter` — shells out to the `pandoc
-  <https://pandoc.org>`_ binary for ``.docx``, ``.odt`` and ``.rtf``.
-  Pandoc preserves Word equations as LaTeX (``$…$`` / ``$$…$$``) and
-  produces cleaner tables and headings than markitdown. Auto-enabled
-  when the ``pandoc`` binary is present on ``PATH``.
+  <https://pandoc.org>`_ binary for ``.docx``, ``.odt``, ``.rtf`` and
+  ``.epub``. Pandoc preserves Word equations as LaTeX (``$…$`` /
+  ``$$…$$``) and produces cleaner tables and headings than markitdown.
+  Auto-enabled when the ``pandoc`` binary is present on ``PATH``.
 * :class:`MarkItDownConverter` — wraps `Microsoft MarkItDown
   <https://github.com/microsoft/markitdown>`_ and handles ``.docx``,
   ``.pptx``, ``.xlsx``, ``.xls``, ``.html``, ``.htm`` and ``.csv``.
   Used as a fallback for ``.docx`` when pandoc is not available.
 * :class:`PlainTextConverter` — passthrough for ``.txt``. No backend,
   no parsing — the file is returned verbatim.
+* :class:`StructuredTextConverter` — wraps ``.json`` and ``.xml`` in a
+  fenced code block with a language hint; JSON is pretty-printed when
+  parseable. No backend dependency.
+* :class:`MarkdownPassthroughConverter` — returns ``.md`` / ``.markdown``
+  files verbatim. Works with the scanner's derived-markdown heuristic,
+  which drops ``.md`` files that look like doc2md's own outputs from
+  previous runs.
 
 Adding a new format:
     1. Subclass :class:`Converter`, set ``extensions``, implement ``convert``.
@@ -119,21 +126,22 @@ class PdfConverter(Converter):
 
 
 class PandocConverter(Converter):
-    """DOCX / ODT / RTF → Markdown via the ``pandoc`` binary.
+    """DOCX / ODT / RTF / EPUB → Markdown via the ``pandoc`` binary.
 
     Pandoc is preferred over :class:`MarkItDownConverter` for these
     formats because it:
 
     * converts Word equations (OMML) to LaTeX (``$…$`` / ``$$…$$``),
     * produces cleaner headings, tables, blockquotes, and lists,
-    * handles ODT and RTF, which markitdown does not.
+    * handles ODT, RTF and EPUB, which markitdown does not (at least
+      not in the default doc2md install).
 
     This converter is auto-registered as the default for ``.docx``,
-    ``.odt`` and ``.rtf`` when the ``pandoc`` binary is found on
-    ``PATH``. If pandoc is not installed, ``.docx`` falls back to
-    markitdown and ``.odt`` / ``.rtf`` have no handler. Install from
-    https://pandoc.org — e.g. ``brew install pandoc`` on macOS or
-    ``apt install pandoc`` on Debian.
+    ``.odt``, ``.rtf`` and ``.epub`` when the ``pandoc`` binary is
+    found on ``PATH``. If pandoc is not installed, ``.docx`` falls
+    back to markitdown and the other three formats have no handler.
+    Install from https://pandoc.org — e.g. ``brew install pandoc`` on
+    macOS or ``apt install pandoc`` on Debian.
 
     Pandoc invocation can be customized by passing *extra_args*. By
     default doc2md runs::
@@ -149,7 +157,7 @@ class PandocConverter(Converter):
     scratch dir — downstream LLM ingest does not use them).
     """
 
-    extensions = (".docx", ".odt", ".rtf")
+    extensions = (".docx", ".odt", ".rtf", ".epub")
 
     def __init__(self, *, extra_args: list[str] | None = None) -> None:
         if shutil.which("pandoc") is None:
@@ -161,7 +169,12 @@ class PandocConverter(Converter):
         self._extra_args = list(extra_args or [])
 
     def convert(self, source: Path) -> str:
-        fmt = {".docx": "docx", ".odt": "odt", ".rtf": "rtf"}[source.suffix.lower()]
+        fmt = {
+            ".docx": "docx",
+            ".odt": "odt",
+            ".rtf": "rtf",
+            ".epub": "epub",
+        }[source.suffix.lower()]
         media_dir = Path(tempfile.mkdtemp(prefix="doc2md_pandoc_media_"))
         try:
             cmd = [
@@ -205,6 +218,54 @@ class PlainTextConverter(Converter):
         return source.read_text(encoding="utf-8", errors="replace")
 
 
+class MarkdownPassthroughConverter(Converter):
+    """Hand-written ``.md`` / ``.markdown`` → Markdown.
+
+    Returns the file verbatim. The scanner's derived-markdown heuristic
+    (see :func:`doc2md.scanner.scan`) takes care of distinguishing
+    authentic markdown sources from doc2md's own outputs in the same
+    directory, and the pipeline short-circuits the write when the
+    resolved output path equals the source path (so ``--force`` won't
+    clobber the source's timestamp).
+    """
+
+    extensions = (".md", ".markdown")
+
+    def convert(self, source: Path) -> str:
+        return source.read_text(encoding="utf-8", errors="replace")
+
+
+class StructuredTextConverter(Converter):
+    """``.json`` / ``.xml`` → fenced code block with a language hint.
+
+    Markitdown's built-in JSON / XML handling flattens the content to a
+    single line, which is unreadable for both humans and LLMs. This
+    converter instead wraps the raw text in a triple-backtick fence
+    with the appropriate language tag — preserving structure exactly
+    while rendering cleanly in every Markdown viewer.
+
+    As a bonus, ``.json`` files are pretty-printed (2-space indent)
+    when they parse as valid JSON; if parsing fails, the original text
+    is kept verbatim.
+    """
+
+    extensions = (".json", ".xml")
+
+    def convert(self, source: Path) -> str:
+        content = source.read_text(encoding="utf-8", errors="replace")
+        ext = source.suffix.lower()
+        if ext == ".json":
+            import json
+
+            try:
+                parsed = json.loads(content)
+                content = json.dumps(parsed, indent=2, ensure_ascii=False)
+            except (ValueError, json.JSONDecodeError):
+                pass  # not valid JSON — keep raw text
+        lang = ext.lstrip(".")
+        return f"```{lang}\n{content}\n```\n"
+
+
 def _register(mapping: dict[str, type[Converter]], cls: type[Converter]) -> None:
     for ext in cls.extensions:
         mapping[ext] = cls
@@ -215,8 +276,10 @@ DEFAULT_CONVERTERS: dict[str, type[Converter]] = {}
 _register(DEFAULT_CONVERTERS, PdfConverter)
 _register(DEFAULT_CONVERTERS, MarkItDownConverter)
 _register(DEFAULT_CONVERTERS, PlainTextConverter)
-# Pandoc takes precedence for .docx (and adds .odt / .rtf) when the
-# binary is available — registration order matters: pandoc overrides
-# markitdown.
+_register(DEFAULT_CONVERTERS, StructuredTextConverter)
+_register(DEFAULT_CONVERTERS, MarkdownPassthroughConverter)
+# Pandoc takes precedence for .docx (and adds .odt / .rtf / .epub)
+# when the binary is available — registration order matters: pandoc
+# overrides markitdown.
 if shutil.which("pandoc") is not None:
     _register(DEFAULT_CONVERTERS, PandocConverter)

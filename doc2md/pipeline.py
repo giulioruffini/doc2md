@@ -104,7 +104,16 @@ def build_corpus(
         def get_converter(ext: str) -> Converter:
             return converters[ext]
 
-    sources = scan(root, extensions, recursive=recursive)
+    # Exclude our own output files from the scan, so a merged corpus
+    # or manifest file that happens to live inside *root* is never
+    # picked up as a source on re-runs.
+    scan_exclude: list[Path] = []
+    if merged_output is not None:
+        scan_exclude.append(merged_output.resolve())
+    if manifest_output is not None:
+        scan_exclude.append(manifest_output.resolve())
+
+    sources = scan(root, extensions, recursive=recursive, exclude=scan_exclude)
     log.info("found %d source document(s) under %s", len(sources), root)
 
     result = BuildResult()
@@ -130,6 +139,16 @@ def build_corpus(
                 out_path = src.with_suffix(".md")
             else:
                 out_path = (individual_root / rel).with_suffix(".md")
+
+            # If the source is its own output (e.g. a hand-written .md
+            # in sibling mode), skip the read/write round-trip entirely.
+            # Even under --force, we don't want to overwrite the file
+            # with a copy of itself and destroy its mtime.
+            if out_path.resolve() == src.resolve():
+                log.info("passthrough: %s", rel)
+                result.skipped.append(src)
+                entries.append(MergeEntry(source=src, markdown=src))
+                continue
 
             if not force and _is_up_to_date(src, out_path):
                 log.info("up-to-date: %s", rel)

@@ -47,7 +47,7 @@ def _teaser(content: str, max_len: int = 140) -> str:
     """First non-trivial line of a document, stripped of markdown noise."""
     for raw in content.splitlines():
         s = raw.strip()
-        if not s or s.startswith("#"):
+        if not s or s.startswith("#") or s.startswith("```"):
             continue
         s = s.lstrip("*_>-•·– ").strip()
         if len(s) < 3:
