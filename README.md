@@ -22,8 +22,11 @@ You pick: individual files, merged corpus, manifest, or any combination.
 ## Features
 
 - **One command, one folder** — `doc2md ./papers` and you're done.
-- **Multi-format** — PDF, DOCX, PPTX, XLSX, XLS, HTML, HTM, CSV out of
-  the box; easily extensible.
+- **Multi-format** — PDF, DOCX, ODT, PPTX, XLSX, XLS, HTML, HTM, CSV
+  out of the box; easily extensible.
+- **Equation-aware** — install [pandoc](https://pandoc.org) and DOCX/ODT
+  equations are preserved as LaTeX (`$…$`, `$$…$$`) instead of being
+  silently dropped. Auto-detected at runtime; no flags required.
 - **LLM-aware output** — the merged file comes with a generated header
   that tells the model how to cite documents (`[NN] filename`), a table
   of contents with one-line teasers, and per-document metadata blocks.
@@ -59,6 +62,31 @@ Requires Python 3.10+. Installs two backends:
 - [`opendataloader-pdf`](https://pypi.org/project/opendataloader-pdf/) —
   for PDFs (higher-quality extraction than markitdown's built-in PDF
   path).
+
+### Optional: pandoc (strongly recommended for DOCX / ODT)
+
+If the [`pandoc`](https://pandoc.org) binary is present on your
+``PATH``, doc2md automatically uses it for ``.docx`` and ``.odt``
+instead of markitdown. Pandoc:
+
+- **preserves Word equations as LaTeX** (``$…$`` and ``$$…$$``),
+- produces cleaner headings, tables, lists, and blockquotes,
+- adds support for ``.odt`` (LibreOffice / OpenOffice).
+
+Install it once and forget about it:
+
+```bash
+# macOS
+brew install pandoc
+# Debian / Ubuntu
+sudo apt install pandoc
+# Windows
+winget install --id JohnMacFarlane.Pandoc
+```
+
+No Python dependency is added — doc2md just shells out to the binary.
+If pandoc isn't installed, ``.docx`` silently falls back to markitdown
+and ``.odt`` is skipped.
 
 > 💡 If you keep your documents inside a cloud-sync folder (Google Drive,
 > Dropbox, iCloud…), create your virtualenv **outside** of it. Cloud
@@ -250,16 +278,17 @@ extension automatically from the registry.
 
 ## Supported formats
 
-| Extension | Backend | Notes |
+| Extension | Backend (default) | Notes |
 | --- | --- | --- |
 | `.pdf` | opendataloader-pdf | Uses PDF structural tree when available; high-quality layout extraction. |
-| `.docx` | markitdown | |
-| `.pptx` | markitdown | |
+| `.docx` | pandoc (fallback: markitdown) | Pandoc preserves equations as LaTeX and produces cleaner output. |
+| `.odt` | pandoc | Only available when pandoc is installed. |
+| `.pptx` | markitdown | Pandoc cannot currently read `.pptx`; equations in slides are lost. |
 | `.xlsx`, `.xls` | markitdown | |
 | `.html`, `.htm` | markitdown | |
 | `.csv` | markitdown | |
 
-More formats (EPUB, RTF, ODT, …) are easy to add — see above.
+More formats (EPUB, RTF, …) are easy to add — see above.
 
 ---
 
@@ -278,6 +307,18 @@ exists and is newer than the source. Use `--force` to rebuild.
 
 **Can I run it over many folders at once?**  
 Yes — wrap it in a shell loop (see Quick start).
+
+**What about equations and math?**  
+For **DOCX / ODT**, install [pandoc](https://pandoc.org) and doc2md will
+auto-use it — equations are preserved as LaTeX (`$…$`, `$$…$$`). For
+**PDFs**, the current pipeline does not recover equations (PDF math is
+rendered as glyphs or bitmaps, which plain-text extractors can't
+recover reliably). If you need LaTeX math out of academic PDFs,
+consider running a dedicated math-OCR tool like
+[marker](https://github.com/datalab-to/marker) or
+[Nougat](https://github.com/facebookresearch/nougat) on the raw PDF
+first; PR welcome to add an alternative `PdfConverter` backed by one
+of these.
 
 **Does the merged file include the individual `.md` files, or read them
 from disk?**  
