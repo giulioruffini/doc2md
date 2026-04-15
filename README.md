@@ -258,10 +258,14 @@ every `.md` in `root` is unambiguously a source.
 
 ## Architecture
 
+> For a full design walkthrough — module responsibilities, data flow,
+> extension points, invariants, and known trade-offs — see
+> **[ARCHITECTURE.md](ARCHITECTURE.md)**.
+
 ```
 doc2md/
 ├── scanner.py      # discover source files under a root
-├── converters.py   # Converter ABC + MarkItDownConverter + PdfConverter + registry
+├── converters.py   # Converter ABC + MarkItDown/Pandoc/Pdf/PlainText/Markdown/StructuredText + registry
 ├── merger.py       # header, TOC, per-document sections, manifest writer
 ├── pipeline.py     # build_corpus() orchestration + BuildResult
 └── cli.py          # argparse entry (installed as the `doc2md` script)
