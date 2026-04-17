@@ -49,6 +49,9 @@ def _teaser(content: str, max_len: int = 140) -> str:
         s = raw.strip()
         if not s or s.startswith("#") or s.startswith("```"):
             continue
+        # Skip LaTeX boilerplate that is never a useful preview.
+        if s.startswith(("\\documentclass", "\\usepackage", "\\begin{document}")):
+            continue
         s = s.lstrip("*_>-•·– ").strip()
         if len(s) < 3:
             continue

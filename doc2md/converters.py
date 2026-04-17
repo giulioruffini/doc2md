@@ -27,6 +27,11 @@ Six built-in converters cover most document formats:
   files verbatim. Works with the scanner's derived-markdown heuristic,
   which drops ``.md`` files that look like doc2md's own outputs from
   previous runs.
+* :class:`LatexConverter` — handles ``.tex`` files. LaTeX is the best
+  math notation for LLMs, so it is kept as-is rather than converted.
+  Sub-files (without ``\\documentclass``) are skipped; multi-file
+  projects are flattened via ``latexpand`` when available. Output is
+  wrapped in a ```` ```latex ```` code fence.
 
 Adding a new format:
     1. Subclass :class:`Converter`, set ``extensions``, implement ``convert``.
@@ -266,6 +271,64 @@ class StructuredTextConverter(Converter):
         return f"```{lang}\n{content}\n```\n"
 
 
+class LatexConverter(Converter):
+    """``.tex`` → fenced LaTeX, with optional project flattening.
+
+    LaTeX *is* the gold-standard math notation for LLMs — converting
+    it to Markdown would lose information. So this converter passes
+    the source through with minimal processing:
+
+    1. **Sub-file detection.** If the file does not contain
+       ``\\documentclass``, it is a chapter or section meant to be
+       ``\\input{}``-ed by a parent document. Converting it separately
+       would double-count content, so an empty string is returned
+       (the merger already skips empty documents).
+    2. **Project flattening** via ``latexpand`` (ships with TeX Live).
+       When the binary is present on ``PATH``, it inlines all
+       ``\\input{}``, ``\\include{}``, and (if a ``.bbl`` exists) the
+       compiled bibliography into one self-contained ``.tex`` stream.
+       ``latexpand`` runs from the source's parent directory so
+       relative paths resolve correctly. If ``latexpand`` is not
+       installed, the raw file content is used instead — the LLM
+       still sees the document structure but ``\\input{}`` references
+       remain unresolved.
+    3. The result is wrapped in a ```` ```latex ```` fenced code block,
+       consistent with how ``StructuredTextConverter`` handles JSON
+       and XML.
+    """
+
+    extensions = (".tex",)
+
+    def convert(self, source: Path) -> str:
+        content = source.read_text(encoding="utf-8", errors="replace")
+
+        if "\\documentclass" not in content:
+            return ""
+
+        if shutil.which("latexpand"):
+            try:
+                cmd = ["latexpand"]
+                # --expand-bbl takes a FILE argument (the .bbl path),
+                # not a bare flag. Only use it when the .bbl exists.
+                bbl = source.with_suffix(".bbl")
+                if bbl.exists():
+                    cmd.extend(["--expand-bbl", bbl.name])
+                cmd.append(source.name)
+                proc = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    cwd=source.parent,
+                    check=True,
+                )
+                if proc.stdout.strip():
+                    content = proc.stdout
+            except subprocess.CalledProcessError:
+                pass  # fall back to raw content
+
+        return f"```latex\n{content}\n```\n"
+
+
 def _register(mapping: dict[str, type[Converter]], cls: type[Converter]) -> None:
     for ext in cls.extensions:
         mapping[ext] = cls
@@ -278,6 +341,7 @@ _register(DEFAULT_CONVERTERS, MarkItDownConverter)
 _register(DEFAULT_CONVERTERS, PlainTextConverter)
 _register(DEFAULT_CONVERTERS, StructuredTextConverter)
 _register(DEFAULT_CONVERTERS, MarkdownPassthroughConverter)
+_register(DEFAULT_CONVERTERS, LatexConverter)
 # Pandoc takes precedence for .docx (and adds .odt / .rtf / .epub)
 # when the binary is available — registration order matters: pandoc
 # overrides markitdown.

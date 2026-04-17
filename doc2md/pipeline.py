@@ -171,6 +171,14 @@ def build_corpus(
                 result.failed.append((src, str(exc)))
                 continue
 
+            # An empty conversion means "this file is not a standalone
+            # source" — e.g. a LaTeX sub-file without \documentclass
+            # that will be \input{}-ed by its parent. Don't write an
+            # empty .md, don't add to entries, don't merge.
+            if not content.strip():
+                log.info("empty (sub-file?), skipped: %s", rel)
+                continue
+
             out_path.parent.mkdir(parents=True, exist_ok=True)
             out_path.write_text(content, encoding="utf-8")
             result.converted.append(out_path)

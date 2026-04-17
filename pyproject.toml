@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "doc2md"
-version = "0.4.0"
-description = "Scan a folder for documents (PDF, DOCX, ODT, RTF, EPUB, PPTX, XLSX, HTML, CSV, TXT, Markdown, JSON, XML) and produce clean Markdown for LLM ingest — individual files, a merged corpus, or both."
+version = "0.5.0"
+description = "Scan a folder for documents (PDF, DOCX, ODT, RTF, EPUB, PPTX, XLSX, HTML, CSV, TXT, Markdown, JSON, XML, LaTeX) and produce clean Markdown for LLM ingest — individual files, a merged corpus, or both."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

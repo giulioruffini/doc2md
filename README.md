@@ -2,8 +2,8 @@
 
 > **Point it at a folder. Get clean Markdown.**  
 > A small, well-behaved tool for turning a directory of mixed documents
-> (PDF, DOCX, ODT, RTF, EPUB, PPTX, XLSX, HTML, CSV, TXT, Markdown,
-> JSON, XML) into Markdown that's ready to feed to an LLM — a Gemini
+> (PDF, DOCX, ODT, RTF, EPUB, PPTX, XLSX, HTML, CSV, TXT, LaTeX,
+> Markdown, JSON, XML) into Markdown that's ready to feed to an LLM — a Gemini
 > Gem, a Claude Project, a RAG pipeline, or just your own reading
 > list.
 
@@ -47,7 +47,8 @@ You pick: individual files, merged corpus, manifest, or any combination.
 
 - **One command, one folder** — `doc2md ./papers` and you're done.
 - **Multi-format** — PDF, DOCX, ODT, RTF, EPUB, PPTX, XLSX, XLS, HTML,
-  HTM, CSV, TXT, Markdown, JSON, XML out of the box; easily extensible.
+  HTM, CSV, TXT, LaTeX, Markdown, JSON, XML out of the box; easily
+  extensible.
 - **Equation-aware** — install [pandoc](https://pandoc.org) and DOCX/ODT
   equations are preserved as LaTeX (`$…$`, `$$…$$`) instead of being
   silently dropped. Auto-detected at runtime; no flags required.
@@ -250,6 +251,47 @@ output directory and browse the corpus like a folder.
 
 ---
 
+## LaTeX projects
+
+LaTeX is the gold-standard notation for mathematics, and modern LLMs
+read it natively. Converting LaTeX to Markdown would *lose*
+information (custom environments, theorem numbering, cross-references,
+fine-grained math markup), so doc2md deliberately keeps `.tex` content
+as-is, wrapped in a ` ```latex ` fenced code block for clean embedding
+inside the merged corpus.
+
+**Multi-file projects.** A typical LaTeX project is split across a
+`main.tex`, several `\input{}`-ed chapter files, and a
+`\bibliography{refs}`. doc2md handles this automatically:
+
+- **Sub-file detection:** any `.tex` file that does *not* contain
+  `\documentclass` is assumed to be a chapter or section included by
+  a parent. It is returned empty (the merger skips empty documents),
+  so it never appears twice in the corpus.
+- **Project flattening:** when [`latexpand`](https://ctan.org/pkg/latexpand)
+  is on your `PATH` (it ships with TeX Live), doc2md uses it to
+  inline all `\input{}`, `\include{}`, and the compiled bibliography
+  (`.bbl`) into one self-contained `.tex` stream. The LLM gets the
+  entire paper in a single section — equations, proofs, references
+  and all.
+- **Graceful fallback:** if `latexpand` is not installed, the raw
+  `main.tex` is used. The LLM still sees the document structure but
+  `\input{}` references remain unresolved.
+
+```bash
+# Install latexpand (included in TeX Live):
+# macOS
+brew install --cask mactex   # or: brew install texlive
+# Debian / Ubuntu
+sudo apt install texlive-extra-utils
+```
+
+**Bibliography tip:** `latexpand --expand-bbl` inlines the `.bbl`
+file, which only exists after a BibTeX / Biber run. If you haven't
+compiled your `.tex` project, the bibliography won't be inlined. For
+best results, compile once (`pdflatex` + `bibtex` / `biber`) before
+running doc2md, so the `.bbl` is fresh.
+
 ## Markdown as a source format
 
 Treating `.md` / `.markdown` as a source format needs one subtlety:
@@ -359,6 +401,7 @@ extension automatically from the registry.
 | `.xlsx`, `.xls` | markitdown | |
 | `.html`, `.htm` | markitdown | |
 | `.csv`  | markitdown | |
+| `.tex`  | latexpand + passthrough | LaTeX is already the best math notation for LLMs — it's kept as-is, not converted. Multi-file projects are flattened via `latexpand` when available; sub-files (without `\documentclass`) are auto-skipped. See [LaTeX projects](#latex-projects). |
 | `.txt`  | passthrough | Returned verbatim; no parsing. |
 | `.md`, `.markdown` | passthrough | Hand-written markdown is copied verbatim. See the [Markdown sources](#markdown-as-a-source-format) section for how doc2md avoids picking up its own outputs. |
 | `.json` | structured-text | Pretty-printed when valid JSON, then wrapped in a ` ```json ` fenced code block. |

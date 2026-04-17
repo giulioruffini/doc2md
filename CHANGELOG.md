@@ -4,6 +4,23 @@ All notable changes to `doc2md` are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] — 2026-04-17
+
+### Added
+- **`.tex` support** via a new `LatexConverter`. LaTeX is the best
+  math notation for LLMs, so it is kept as-is rather than converted
+  to Markdown. Key features:
+  - Sub-files (without `\documentclass`) are auto-detected and
+    skipped, so `\input{}`-ed chapters don't appear twice.
+  - Multi-file projects are flattened via `latexpand --expand-bbl`
+    when the binary is on `PATH` (ships with TeX Live), inlining all
+    `\input{}`, `\include{}`, and compiled bibliography into one
+    self-contained `.tex` stream.
+  - Graceful fallback: if `latexpand` is not installed, the raw
+    `main.tex` is used.
+  - Output is wrapped in a ` ```latex ` fenced code block.
+- `README.md` gains a dedicated *LaTeX projects* section.
+
 ## [0.4.0] — 2026-04-15
 
 ### Added
