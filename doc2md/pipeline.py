@@ -131,6 +131,55 @@ def build_corpus(
         cleanup_dir = Path(tempfile.mkdtemp(prefix="doc2md_"))
         individual_root = cleanup_dir
 
+    # ---- Collision resolution ----------------------------------------
+    # Multiple sources can map to the same .md output (e.g. main.tex
+    # and main.pdf both produce main.md). When that happens, keep the
+    # highest-fidelity source and drop the rest. Priority: lower = better.
+    _PRIO: dict[str, int] = {
+        ".tex": 0,                          # native math notation
+        ".md": 1, ".markdown": 1,           # already markdown
+        ".docx": 2, ".odt": 2, ".rtf": 2,  # rich structured text
+        ".epub": 3,
+        ".pptx": 4, ".xlsx": 4, ".xls": 4,
+        ".html": 5, ".htm": 5,
+        ".csv": 6, ".json": 6, ".xml": 6, ".txt": 6,
+        ".pdf": 7,                          # lowest — lossy extraction
+    }
+
+    def _out_for(src: Path) -> Path:
+        rel = src.relative_to(root)
+        if write_individual and output_dir is None:
+            return src.with_suffix(".md")
+        return (individual_root / rel).with_suffix(".md")
+
+    seen: dict[Path, Path] = {}  # resolved out_path → winning source
+    active: set[Path] = set()
+    for src in sources:
+        out_resolved = _out_for(src).resolve()
+        if out_resolved not in seen:
+            seen[out_resolved] = src
+            active.add(src.resolve())
+        else:
+            prev = seen[out_resolved]
+            prev_prio = _PRIO.get(prev.suffix.lower(), 99)
+            cur_prio = _PRIO.get(src.suffix.lower(), 99)
+            if cur_prio < prev_prio:
+                active.discard(prev.resolve())
+                seen[out_resolved] = src
+                active.add(src.resolve())
+                log.info(
+                    "collision: %s preferred over %s → %s",
+                    src.name, prev.name, out_resolved.name,
+                )
+            else:
+                log.info(
+                    "collision: %s preferred over %s → %s",
+                    prev.name, src.name, out_resolved.name,
+                )
+
+    sources = [s for s in sources if s.resolve() in active]
+    # ---- End collision resolution ------------------------------------
+
     try:
         entries: list[MergeEntry] = []
         for src in sources:

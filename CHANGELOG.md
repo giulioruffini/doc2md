@@ -4,6 +4,19 @@ All notable changes to `doc2md` are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.1] — 2026-04-17
+
+### Added
+- **Output collision resolution.** When multiple sources map to the
+  same `.md` output (e.g. `main.tex` and `main.pdf` both producing
+  `main.md`), the pipeline now keeps the highest-fidelity source and
+  drops the rest. Priority order:
+  `.tex` > `.md` > `.docx`/`.odt`/`.rtf` > `.epub` > `.pptx`/`.xlsx` >
+  `.html` > `.csv`/`.json`/`.xml`/`.txt` > `.pdf`.
+  This means LaTeX always wins over PDF when both exist — which is
+  the right choice for LLM consumption, since LaTeX preserves
+  equations natively.
+
 ## [0.5.0] — 2026-04-17
 
 ### Added
